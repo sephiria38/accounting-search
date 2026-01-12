@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd client && npm run build && cd ../server && npm install",
+  "outputDirectory": "client/build",
+  "env": {
+    "GEMINI_API_KEY": "@gemini_api_key"
+  }
+}
