@@ -8,7 +8,16 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(powershell -Command \"Stop-Process -Id 27720 -Force\")",
-      "Bash(timeout /t 8 /nobreak)"
+      "Bash(timeout /t 8 /nobreak)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(powershell -Command \"Get-Process node | Where-Object {$_MainWindowTitle -eq ''''} | Select-Object -First 2 | ForEach-Object {Stop-Process -Id $_Id -Force}\")",
+      "Bash(powershell Stop-Process -Id 23416 -Force)",
+      "Bash(powershell Start-Sleep -Seconds 5)",
+      "Bash(powershell Stop-Process:*)",
+      "Bash(powershell Start-Sleep -Seconds 8)",
+      "Bash(npm start)",
+      "Bash(powershell Start-Sleep:*)"
     ]
   }
 }

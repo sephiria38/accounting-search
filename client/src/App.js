@@ -14,6 +14,10 @@ function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [databaseOnlyMode, setDatabaseOnlyMode] = useState(true); // Default to database-only mode
+
+  // Message history limit to prevent memory leak
+  const MAX_MESSAGES = 50;
 
   // Fetch available laws on mount
   useEffect(() => {
@@ -72,10 +76,19 @@ function App() {
     setChatLoading(true);
 
     // Add user message to chat
-    const newMessages = [...chatMessages, { role: 'user', content: userMessage }];
+    let newMessages = [...chatMessages, { role: 'user', content: userMessage }];
+
+    // Limit message history to prevent memory leak
+    if (newMessages.length > MAX_MESSAGES) {
+      newMessages = newMessages.slice(-MAX_MESSAGES);
+    }
+
     setChatMessages(newMessages);
 
     try {
+      // Only send recent history to API (last 10 messages)
+      const recentHistory = newMessages.slice(-11, -1);
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -83,17 +96,23 @@ function App() {
         },
         body: JSON.stringify({
           message: userMessage,
-          history: chatMessages.map(msg => ({
+          history: recentHistory.map(msg => ({
             role: msg.role,
             content: msg.content
-          }))
+          })),
+          databaseOnly: databaseOnlyMode
         })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setChatMessages([...newMessages, { role: 'model', content: data.message }]);
+        let updatedMessages = [...newMessages, { role: 'model', content: data.message }];
+        // Limit again after adding response
+        if (updatedMessages.length > MAX_MESSAGES) {
+          updatedMessages = updatedMessages.slice(-MAX_MESSAGES);
+        }
+        setChatMessages(updatedMessages);
       } else {
         setChatMessages([...newMessages, {
           role: 'model',
@@ -111,6 +130,10 @@ function App() {
     }
   };
 
+  const clearChatHistory = () => {
+    setChatMessages([]);
+  };
+
   return (
     <div className="App">
       <header className="header">
@@ -120,15 +143,32 @@ function App() {
             className={`mode-button ${!chatMode ? 'active' : ''}`}
             onClick={() => setChatMode(false)}
           >
-            検索モード
+            <span className="mode-icon">🔍</span>
+            検索
           </button>
           <button
             className={`mode-button ${chatMode ? 'active' : ''}`}
             onClick={() => setChatMode(true)}
           >
-            AI相談モード
+            <span className="mode-icon">💬</span>
+            AI相談
           </button>
         </div>
+        {chatMode && (
+          <div className="ai-mode-toggle">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={databaseOnlyMode}
+                onChange={(e) => setDatabaseOnlyMode(e.target.checked)}
+                className="toggle-checkbox"
+              />
+              <span className="toggle-text">
+                {databaseOnlyMode ? '📚 データベースのみ' : '🌐 検索+参照'}
+              </span>
+            </label>
+          </div>
+        )}
       </header>
 
       <main className="main">
@@ -205,26 +245,55 @@ function App() {
         </>
         ) : (
         <div className="chat-container">
+          {chatMessages.length > 0 && (
+            <div className="chat-header">
+              <button onClick={clearChatHistory} className="clear-button">
+                🗑️ 履歴をクリア
+              </button>
+              <span className="message-count">{chatMessages.length}件のメッセージ</span>
+            </div>
+          )}
           <div className="chat-messages">
             {chatMessages.length === 0 && (
               <div className="chat-welcome">
-                <h2>AI相談モードへようこそ</h2>
+                <h2>💬 AI相談モード</h2>
                 <p>会計法令について質問してください。AIが関連する法令を検索して回答します。</p>
+                <div className="example-questions">
+                  <p className="example-title">質問例：</p>
+                  <div className="example-item">• インボイス制度について教えて</div>
+                  <div className="example-item">• 交際費の損金算入の条件は？</div>
+                  <div className="example-item">• 減価償却の計算方法は？</div>
+                  <div className="example-item">• 収益認識の5ステップとは？</div>
+                </div>
               </div>
             )}
             {chatMessages.map((msg, index) => (
               <div key={index} className={`chat-message ${msg.role}`}>
+                <div className="message-avatar">
+                  {msg.role === 'user' ? '👤' : '🤖'}
+                </div>
                 <div className="message-content">
-                  <strong>{msg.role === 'user' ? 'あなた' : 'AI'}:</strong>
+                  <div className="message-header">
+                    <strong>{msg.role === 'user' ? 'あなた' : 'AI'}</strong>
+                  </div>
                   <div className="message-text">{msg.content}</div>
                 </div>
               </div>
             ))}
             {chatLoading && (
               <div className="chat-message model">
+                <div className="message-avatar">🤖</div>
                 <div className="message-content">
-                  <strong>AI:</strong>
-                  <div className="message-text">考え中...</div>
+                  <div className="message-header">
+                    <strong>AI</strong>
+                  </div>
+                  <div className="message-text">
+                    <span className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -239,7 +308,7 @@ function App() {
               disabled={chatLoading}
             />
             <button type="submit" className="chat-button" disabled={chatLoading || !chatInput.trim()}>
-              {chatLoading ? '送信中...' : '送信'}
+              {chatLoading ? '⏳' : '📤'}
             </button>
           </form>
         </div>

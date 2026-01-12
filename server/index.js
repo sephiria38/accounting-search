@@ -159,11 +159,47 @@ async function executeSearchTool(functionCall) {
 // Chat endpoint with Gemini
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history = [] } = req.body;
+    const { message, history = [], databaseOnly = false } = req.body;
 
     if (!message || message.trim() === '') {
       return res.status(400).json({ error: 'Message is required' });
     }
+
+    // System instruction based on mode
+    const systemInstructionText = databaseOnly
+      ? `あなたは会計法令の専門家です。ユーザーの質問から関連キーワードを複数抽出し、それら全てのキーワードで search_accounting_law 関数を実行してください。
+
+重要な検索戦略：
+1. ユーザーの質問を分析し、関連する複数のキーワードを抽出してください
+   例：「損金不算入について」→「損金不算入」「損金算入」「損金」などで検索
+   例：「インボイス制度」→「インボイス」「適格請求書」「仕入税額控除」などで検索
+2. 抽出した全てのキーワードで search_accounting_law 関数を実行してください
+3. 複数の検索結果を統合して、包括的に回答してください
+4. データベースに情報がない場合のみ「申し訳ありませんが、提供されているデータベースにはその情報が含まれていません」と答えてください
+5. データベース外の一般知識や推測で回答しないでください
+
+回答形式：
+- 回答の最初に出典を明記：【出典：○○法 第○条】
+- 該当する条文を引用してから説明
+- 複数の条文がある場合は、それぞれ出典を明記
+- 箇条書きで分かりやすく説明`
+      : `あなたは会計法令の専門家です。ユーザーの質問から関連キーワードを複数抽出し、それら全てのキーワードで search_accounting_law 関数を実行してください。複数のキーワードでマッチした結果を統合して、わかりやすく回答してください。データベースにない情報についてのみ、背景知識を補足してください。
+
+検索戦略：
+1. ユーザーの質問を分析し、関連する複数のキーワードを抽出してください
+   例：「損金不算入について」→「損金不算入」「損金算入」「損金」などで検索
+   例：「インボイス制度」→「インボイス」「適格請求書」「仕入税額控除」などで検索
+2. 抽出した全てのキーワードで search_accounting_law 関数を実行してください
+3. 複数の検索結果を統合して、包括的に回答してください
+4. データベースの情報を優先し、データベースにない情報についてのみ背景知識を補足してください
+
+回答形式：
+1. まず複数のキーワードで search_accounting_law 関数を実行
+2. 回答の冒頭に出典を明記：【出典：○○法 第○条】
+3. 該当する条文を引用してから説明
+4. 複数の条文がある場合は、それぞれ出典を明記
+5. データベースの情報を優先し、必要に応じて補足説明を追加
+6. 箇条書きで分かりやすく説明`;
 
     // Initialize the model with function calling and system instruction
     const model = genAI.getGenerativeModel({
@@ -172,7 +208,7 @@ app.post('/api/chat', async (req, res) => {
         functionDeclarations: [searchFunction]
       }],
       systemInstruction: {
-        parts: [{ text: "あなたは会計法令の専門家です。ユーザーの質問に対して、search_accounting_law関数を使って関連する法令を検索し、わかりやすく説明してください。" }]
+        parts: [{ text: systemInstructionText }]
       }
     });
 
